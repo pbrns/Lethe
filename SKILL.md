@@ -1,6 +1,8 @@
 ---
 name: memory-tool
 description: Persistent memory for stateless chat sessions. Saves and retrieves facts, preferences, and context across separate sessions using local device storage. Use when the user asks to remember, save, recall, forget, or search stored information. Always call get_context automatically at the start of every new session before responding to the user's first message.
+metadata:
+  homepage: https://pbrns.github.io/Lethe
 ---
 
 # Memory Tool (Lethe)
