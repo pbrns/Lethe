@@ -1,0 +1,925 @@
+<!--
+  @license
+  Lethe Memory Tool — AI Edge Gallery Skill
+  A persistent memory layer for stateless on-device AI sessions.
+
+  Licensed under the Apache License, Version 2.0
+  http://www.apache.org/licenses/LICENSE-2.0
+-->
+
+<!DOCTYPE html>
+
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Lethe · Memory Tool</title>
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,300;0,400;0,600;1,300;1,400&family=Inconsolata:wght@300;400;500&display=swap" rel="stylesheet" />
+<style>
+  /* ── Reset & Variables ─────────────────────────────── */
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+:root {
+–bg:        #080705;
+–surface:   #110f0a;
+–surface2:  #1a1710;
+–border:    #2e2a1f;
+–border2:   #3d3828;
+–amber:     #c9923a;
+–amber-dim: #7a5520;
+–gold:      #e8c87a;
+–cream:     #d6c9ae;
+–muted:     #7a7060;
+–danger:    #8b3a3a;
+–danger-hl: #c05a5a;
+–ff-serif:  ‘Cormorant Garamond’, Georgia, serif;
+–ff-mono:   ‘Inconsolata’, ‘Courier New’, monospace;
+–radius:    4px;
+–glow:      0 0 20px rgba(201,146,58,0.15);
+}
+
+html { scroll-behavior: smooth; }
+
+body {
+background: var(–bg);
+color: var(–cream);
+font-family: var(–ff-serif);
+font-size: 17px;
+line-height: 1.6;
+min-height: 100vh;
+overflow-x: hidden;
+}
+
+/* Grain overlay */
+body::before {
+content: ‘’;
+position: fixed;
+inset: 0;
+background-image: url(“data:image/svg+xml,%3Csvg viewBox=‘0 0 256 256’ xmlns=‘http://www.w3.org/2000/svg’%3E%3Cfilter id=‘n’%3E%3CfeTurbulence type=‘fractalNoise’ baseFrequency=‘0.9’ numOctaves=‘4’ stitchTiles=‘stitch’/%3E%3C/filter%3E%3Crect width=‘100%25’ height=‘100%25’ filter=‘url(%23n)’ opacity=‘0.04’/%3E%3C/svg%3E”);
+pointer-events: none;
+z-index: 9999;
+opacity: 0.6;
+}
+
+/* ── Layout ────────────────────────────────────────── */
+.app {
+max-width: 760px;
+margin: 0 auto;
+padding: 0 20px 80px;
+}
+
+/* ── Header ────────────────────────────────────────── */
+.header {
+text-align: center;
+padding: 52px 0 36px;
+position: relative;
+}
+
+.header::after {
+content: ‘’;
+display: block;
+width: 120px;
+height: 1px;
+background: linear-gradient(90deg, transparent, var(–amber), transparent);
+margin: 28px auto 0;
+}
+
+.header-sigil {
+font-size: 11px;
+font-family: var(–ff-mono);
+letter-spacing: 0.35em;
+color: var(–amber);
+text-transform: uppercase;
+margin-bottom: 16px;
+opacity: 0.8;
+animation: fadeUp 0.6s ease both;
+}
+
+.header-title {
+font-size: clamp(42px, 8vw, 68px);
+font-weight: 300;
+letter-spacing: -0.02em;
+line-height: 1;
+color: var(–gold);
+animation: fadeUp 0.6s 0.1s ease both;
+}
+
+.header-title em {
+font-style: italic;
+color: var(–amber);
+}
+
+.header-sub {
+font-size: 14px;
+font-family: var(–ff-mono);
+color: var(–muted);
+letter-spacing: 0.12em;
+margin-top: 10px;
+animation: fadeUp 0.6s 0.2s ease both;
+}
+
+/* ── Section Labels ────────────────────────────────── */
+.section-label {
+font-family: var(–ff-mono);
+font-size: 10px;
+letter-spacing: 0.4em;
+text-transform: uppercase;
+color: var(–amber-dim);
+margin-bottom: 14px;
+display: flex;
+align-items: center;
+gap: 10px;
+}
+.section-label::after {
+content: ‘’;
+flex: 1;
+height: 1px;
+background: var(–border);
+}
+
+/* ── Cards ─────────────────────────────────────────── */
+.card {
+background: var(–surface);
+border: 1px solid var(–border);
+border-radius: var(–radius);
+padding: 24px 28px;
+margin-bottom: 14px;
+animation: fadeUp 0.5s ease both;
+position: relative;
+overflow: hidden;
+}
+
+.card::before {
+content: ‘’;
+position: absolute;
+top: 0; left: 0; right: 0;
+height: 1px;
+background: linear-gradient(90deg, transparent, var(–border2), transparent);
+}
+
+/* ── Form Elements ─────────────────────────────────── */
+label {
+display: block;
+font-family: var(–ff-mono);
+font-size: 11px;
+letter-spacing: 0.3em;
+text-transform: uppercase;
+color: var(–muted);
+margin-bottom: 6px;
+}
+
+input[type=“text”],
+textarea {
+width: 100%;
+background: var(–bg);
+border: 1px solid var(–border);
+border-radius: var(–radius);
+color: var(–cream);
+font-family: var(–ff-serif);
+font-size: 16px;
+padding: 10px 14px;
+outline: none;
+transition: border-color 0.2s, box-shadow 0.2s;
+resize: vertical;
+}
+
+input[type=“text”]:focus,
+textarea:focus {
+border-color: var(–amber);
+box-shadow: 0 0 0 2px rgba(201,146,58,0.1);
+}
+
+input::placeholder,
+textarea::placeholder { color: var(–muted); opacity: 0.5; }
+
+.form-row { margin-bottom: 18px; }
+
+/* ── Buttons ────────────────────────────────────────── */
+.btn {
+display: inline-flex;
+align-items: center;
+gap: 8px;
+font-family: var(–ff-mono);
+font-size: 11px;
+letter-spacing: 0.25em;
+text-transform: uppercase;
+border: 1px solid var(–border2);
+border-radius: var(–radius);
+padding: 9px 20px;
+cursor: pointer;
+transition: all 0.2s;
+background: transparent;
+color: var(–cream);
+}
+
+.btn:hover {
+border-color: var(–amber);
+color: var(–amber);
+box-shadow: var(–glow);
+}
+
+.btn-primary {
+background: rgba(201,146,58,0.12);
+border-color: var(–amber-dim);
+color: var(–gold);
+}
+.btn-primary:hover {
+background: rgba(201,146,58,0.22);
+border-color: var(–amber);
+color: var(–gold);
+}
+
+.btn-danger {
+border-color: var(–danger);
+color: var(–danger-hl);
+font-size: 10px;
+padding: 5px 10px;
+}
+.btn-danger:hover {
+background: rgba(139,58,58,0.2);
+border-color: var(–danger-hl);
+}
+
+/* ── Search ─────────────────────────────────────────── */
+.search-wrap {
+position: relative;
+margin-bottom: 18px;
+}
+.search-wrap input {
+padding-left: 36px;
+}
+.search-icon {
+position: absolute;
+left: 12px;
+top: 50%;
+transform: translateY(-50%);
+color: var(–muted);
+font-size: 14px;
+pointer-events: none;
+}
+
+/* ── Memory Cards ───────────────────────────────────── */
+.memory-card {
+background: var(–surface);
+border: 1px solid var(–border);
+border-radius: var(–radius);
+padding: 18px 22px;
+margin-bottom: 10px;
+transition: border-color 0.2s, box-shadow 0.2s;
+animation: fadeUp 0.3s ease both;
+}
+.memory-card:hover {
+border-color: var(–border2);
+box-shadow: 0 4px 24px rgba(0,0,0,0.4);
+}
+
+.memory-header {
+display: flex;
+justify-content: space-between;
+align-items: flex-start;
+gap: 12px;
+margin-bottom: 8px;
+}
+
+.memory-title {
+font-size: 18px;
+font-weight: 600;
+color: var(–gold);
+line-height: 1.3;
+flex: 1;
+}
+
+.memory-content {
+font-size: 15px;
+color: var(–cream);
+opacity: 0.8;
+line-height: 1.55;
+margin-bottom: 10px;
+white-space: pre-wrap;
+}
+
+.memory-meta {
+display: flex;
+align-items: center;
+gap: 10px;
+flex-wrap: wrap;
+}
+
+.memory-date {
+font-family: var(–ff-mono);
+font-size: 10px;
+color: var(–muted);
+letter-spacing: 0.1em;
+}
+
+.tag {
+font-family: var(–ff-mono);
+font-size: 10px;
+letter-spacing: 0.15em;
+text-transform: uppercase;
+color: var(–amber);
+background: rgba(201,146,58,0.08);
+border: 1px solid rgba(201,146,58,0.2);
+border-radius: 2px;
+padding: 2px 7px;
+}
+
+/* ── Empty State ────────────────────────────────────── */
+.empty {
+text-align: center;
+padding: 48px 20px;
+color: var(–muted);
+}
+.empty-glyph {
+font-size: 36px;
+display: block;
+margin-bottom: 14px;
+opacity: 0.4;
+}
+.empty p {
+font-family: var(–ff-mono);
+font-size: 12px;
+letter-spacing: 0.2em;
+text-transform: uppercase;
+}
+
+/* ── Stats bar ──────────────────────────────────────── */
+.stats-bar {
+display: flex;
+gap: 2px;
+margin-bottom: 28px;
+}
+.stat {
+flex: 1;
+background: var(–surface);
+border: 1px solid var(–border);
+padding: 14px 18px;
+border-radius: var(–radius);
+text-align: center;
+}
+.stat-num {
+display: block;
+font-size: 28px;
+font-weight: 300;
+color: var(–gold);
+line-height: 1;
+margin-bottom: 4px;
+}
+.stat-lbl {
+font-family: var(–ff-mono);
+font-size: 9px;
+letter-spacing: 0.3em;
+text-transform: uppercase;
+color: var(–muted);
+}
+
+/* ── Toast ──────────────────────────────────────────── */
+#toast {
+position: fixed;
+bottom: 28px;
+left: 50%;
+transform: translateX(-50%) translateY(80px);
+background: var(–surface2);
+border: 1px solid var(–amber-dim);
+border-radius: var(–radius);
+padding: 12px 24px;
+font-family: var(–ff-mono);
+font-size: 12px;
+letter-spacing: 0.15em;
+color: var(–gold);
+z-index: 1000;
+transition: transform 0.3s ease, opacity 0.3s ease;
+opacity: 0;
+white-space: nowrap;
+max-width: 90vw;
+text-overflow: ellipsis;
+overflow: hidden;
+}
+#toast.show {
+transform: translateX(-50%) translateY(0);
+opacity: 1;
+}
+
+/* ── Danger zone ────────────────────────────────────── */
+.danger-zone {
+border-color: rgba(139,58,58,0.3) !important;
+}
+
+/* ── API Reference box ──────────────────────────────── */
+.api-box {
+background: var(–bg);
+border: 1px solid var(–border);
+border-radius: var(–radius);
+padding: 16px 18px;
+margin-top: 14px;
+}
+.api-box pre {
+font-family: var(–ff-mono);
+font-size: 12px;
+color: var(–muted);
+white-space: pre-wrap;
+word-break: break-word;
+line-height: 1.7;
+}
+.api-box pre .key   { color: var(–amber); }
+.api-box pre .val   { color: var(–cream); }
+.api-box pre .cmt   { color: #4a4538; }
+
+/* ── Expand toggle ──────────────────────────────────── */
+details summary {
+cursor: pointer;
+list-style: none;
+font-family: var(–ff-mono);
+font-size: 11px;
+letter-spacing: 0.25em;
+text-transform: uppercase;
+color: var(–muted);
+display: flex;
+align-items: center;
+gap: 8px;
+user-select: none;
+padding: 6px 0;
+transition: color 0.2s;
+}
+details summary:hover { color: var(–amber); }
+details summary::before {
+content: ‘▸’;
+font-size: 10px;
+transition: transform 0.2s;
+}
+details[open] summary::before { transform: rotate(90deg); }
+
+/* ── Animations ─────────────────────────────────────── */
+@keyframes fadeUp {
+from { opacity: 0; transform: translateY(10px); }
+to   { opacity: 1; transform: translateY(0); }
+}
+
+/* ── Scrollbar ──────────────────────────────────────── */
+::-webkit-scrollbar { width: 4px; }
+::-webkit-scrollbar-track { background: var(–bg); }
+::-webkit-scrollbar-thumb { background: var(–border2); border-radius: 2px; }
+
+/* ── Responsive ─────────────────────────────────────── */
+@media (max-width: 500px) {
+.card { padding: 18px 16px; }
+.stats-bar { flex-direction: row; }
+.stat { padding: 10px; }
+.stat-num { font-size: 22px; }
+}
+</style>
+
+</head>
+<body>
+<div class="app">
+
+  <!-- Header -->
+
+  <header class="header">
+    <div class="header-sigil">AI Edge Gallery · Memory Skill</div>
+    <h1 class="header-title"><em>Lethe</em></h1>
+    <div class="header-sub">memory-tool · persistent context for stateless sessions</div>
+  </header>
+
+  <!-- Stats -->
+
+  <div class="stats-bar" id="statsBar">
+    <div class="stat">
+      <span class="stat-num" id="statCount">0</span>
+      <span class="stat-lbl">Memories</span>
+    </div>
+    <div class="stat">
+      <span class="stat-num" id="statTags">0</span>
+      <span class="stat-lbl">Tags</span>
+    </div>
+    <div class="stat">
+      <span class="stat-num" id="statAge">—</span>
+      <span class="stat-lbl">Oldest</span>
+    </div>
+  </div>
+
+  <!-- Save memory -->
+
+  <div class="section-label">Inscribe a Memory</div>
+  <div class="card" style="animation-delay:0.05s">
+    <div class="form-row">
+      <label for="inp-title">Title</label>
+      <input type="text" id="inp-title" placeholder="e.g. My preferred coding style" />
+    </div>
+    <div class="form-row">
+      <label for="inp-content">Content</label>
+      <textarea id="inp-content" rows="4" placeholder="Write anything the AI should remember about you, your preferences, facts, context…"></textarea>
+    </div>
+    <div class="form-row">
+      <label for="inp-tags">Tags <span style="font-size:9px;letter-spacing:0.15em">(comma separated)</span></label>
+      <input type="text" id="inp-tags" placeholder="e.g. coding, preferences, work" />
+    </div>
+    <div style="display:flex;gap:10px;flex-wrap:wrap;">
+      <button class="btn btn-primary" onclick="uiSaveMemory()">⊕ &nbsp;Save Memory</button>
+      <button class="btn" onclick="uiClearForm()">Clear</button>
+    </div>
+  </div>
+
+  <!-- Memory list -->
+
+  <div class="section-label" style="margin-top:32px">Stored Memories</div>
+  <div class="search-wrap">
+    <span class="search-icon">⌕</span>
+    <input type="text" id="inp-search" placeholder="Search memories…" oninput="uiRender()" />
+  </div>
+  <div id="memoryList"></div>
+
+  <!-- API / Skill Reference -->
+
+  <div class="section-label" style="margin-top:40px">Skill API Reference</div>
+  <div class="card" style="animation-delay:0.1s">
+    <p style="font-size:14px;color:var(--muted);margin-bottom:14px;font-family:var(--ff-mono);letter-spacing:0.05em">
+      Call <code style="color:var(--amber)">ai_edge_gallery_get_result</code> with a JSON string before each session to inject context.
+    </p>
+
+```
+<details>
+  <summary>get_context — inject all memories before a chat</summary>
+  <div class="api-box"><pre><span class="cmt">// Paste this as the skill tool call in your agent:</span>
+```
+
+{
+<span class="key">“action”</span>: <span class="val">“get_context”</span>
+}
+<span class="cmt">// Returns formatted memory block for the AI’s context window.</span></pre></div>
+</details>
+
+```
+<details>
+  <summary>save_memory — store a new memory</summary>
+  <div class="api-box"><pre>{
+```
+
+<span class="key">“action”</span>:   <span class="val">“save_memory”</span>,
+<span class="key">“title”</span>:   <span class="val">“My name”</span>,
+<span class="key">“content”</span>: <span class="val">“My name is Alex and I prefer concise answers.”</span>,
+<span class="key">“tags”</span>:    <span class="val">“identity, preferences”</span>  <span class="cmt">// optional</span>
+}</pre></div>
+</details>
+
+```
+<details>
+  <summary>search_memories — find memories by keyword</summary>
+  <div class="api-box"><pre>{
+```
+
+<span class="key">“action”</span>: <span class="val">“search_memories”</span>,
+<span class="key">“query”</span>:  <span class="val">“coding”</span>
+}</pre></div>
+</details>
+
+```
+<details>
+  <summary>delete_memory — remove by id</summary>
+  <div class="api-box"><pre>{
+```
+
+<span class="key">“action”</span>: <span class="val">“delete_memory”</span>,
+<span class="key">“id”</span>:     <span class="val">”<memory id>”</span>
+}</pre></div>
+</details>
+
+```
+<details>
+  <summary>wipe_memories — erase everything</summary>
+  <div class="api-box"><pre>{
+```
+
+<span class="key">“action”</span>: <span class="val">“wipe_memories”</span>
+}
+<span class="cmt">// ⚠ Irreversible.</span></pre></div>
+</details>
+
+  </div>
+
+  <!-- Danger zone -->
+
+  <div class="section-label" style="margin-top:32px">Danger Zone</div>
+  <div class="card danger-zone" style="animation-delay:0.15s">
+    <p style="font-size:14px;color:var(--muted);margin-bottom:14px;font-family:var(--ff-mono);letter-spacing:0.05em">
+      Permanently erase all stored memories. This cannot be undone.
+    </p>
+    <button class="btn btn-danger" onclick="uiWipeAll()">✕ &nbsp;Wipe All Memories</button>
+  </div>
+
+</div>
+
+<div id="toast"></div>
+
+<!-- ══════════════════════════════════════════════════════════
+     SKILL LOGIC — ai_edge_gallery_get_result
+     This is the entry-point Google AI Edge Gallery calls.
+     ══════════════════════════════════════════════════════════ -->
+
+<script>
+'use strict';
+
+/* ── Storage helpers ────────────────────────────────── */
+const STORAGE_KEY = 'lethe_memory_tool_v1';
+
+function getData() {
+  try {
+    return JSON.parse(localStorage.getItem(STORAGE_KEY) || '{"memories":[]}');
+  } catch { return { memories: [] }; }
+}
+
+function saveData(store) {
+  localStorage.setItem(STORAGE_KEY, JSON.stringify(store));
+}
+
+/* ── ID generator ───────────────────────────────────── */
+function genId() {
+  return Date.now().toString(36) + Math.random().toString(36).slice(2, 7);
+}
+
+/* ── Helpers ────────────────────────────────────────── */
+function normalizeTags(raw) {
+  if (!raw) return [];
+  return raw.split(',').map(t => t.trim().toLowerCase()).filter(Boolean);
+}
+
+function formatDate(iso) {
+  const d = new Date(iso);
+  return d.toLocaleDateString('en-US', { year:'numeric', month:'short', day:'numeric' });
+}
+
+function daysAgo(iso) {
+  const diff = Date.now() - new Date(iso).getTime();
+  const d = Math.floor(diff / 86400000);
+  if (d === 0) return 'today';
+  if (d === 1) return '1d ago';
+  if (d < 30) return `${d}d ago`;
+  const m = Math.floor(d / 30);
+  return `${m}mo ago`;
+}
+
+/* ── Core operations ────────────────────────────────── */
+function opSaveMemory(title, content, tags) {
+  if (!title || !title.trim()) throw new Error('Title is required.');
+  if (!content || !content.trim()) throw new Error('Content is required.');
+
+  const store = getData();
+  const id = genId();
+  const now = new Date().toISOString();
+
+  store.memories.push({
+    id,
+    title:   title.trim(),
+    content: content.trim(),
+    tags:    normalizeTags(tags),
+    created: now,
+    updated: now,
+  });
+
+  saveData(store);
+  return { id, message: `Memory saved: "${title.trim()}"` };
+}
+
+function opGetContext() {
+  const store = getData();
+  if (!store.memories.length) {
+    return 'No stored memories found. The user has not saved any memories yet.';
+  }
+
+  const lines = [
+    `[Lethe Memory Tool — ${store.memories.length} stored memory/memories as of ${new Date().toISOString()}]`,
+    '',
+    ...store.memories.map((m, i) => {
+      const tagPart = m.tags.length ? ` [${m.tags.join(', ')}]` : '';
+      return `### Memory ${i + 1}: ${m.title}${tagPart}\n${m.content}\n(saved ${formatDate(m.created)})`;
+    }),
+    '',
+    '[End of memory context. Use this information to personalise responses.]',
+  ];
+
+  return lines.join('\n');
+}
+
+function opGetMemories() {
+  const store = getData();
+  if (!store.memories.length) return 'No stored memories.';
+  return store.memories
+    .map((m) => `[${m.id}] ${m.title}: ${m.content.slice(0, 100)}${m.content.length > 100 ? '…' : ''}`)
+    .join('\n');
+}
+
+function opSearchMemories(query) {
+  if (!query || !query.trim()) throw new Error('Query is required.');
+  const q = query.toLowerCase();
+  const store = getData();
+  const hits = store.memories.filter(m =>
+    m.title.toLowerCase().includes(q) ||
+    m.content.toLowerCase().includes(q) ||
+    m.tags.some(t => t.includes(q))
+  );
+  if (!hits.length) return `No memories found matching "${query}".`;
+  return hits.map(m => `[${m.id}] ${m.title}: ${m.content.slice(0, 120)}${m.content.length > 120 ? '…' : ''}`).join('\n');
+}
+
+function opDeleteMemory(id) {
+  if (!id) throw new Error('Memory id is required.');
+  const store = getData();
+  const before = store.memories.length;
+  store.memories = store.memories.filter(m => m.id !== id);
+  if (store.memories.length === before) return `No memory found with id "${id}".`;
+  saveData(store);
+  return `Memory "${id}" deleted.`;
+}
+
+function opWipeMemories() {
+  localStorage.removeItem(STORAGE_KEY);
+  return 'All memories have been erased. The slate is clean.';
+}
+
+/* ══════════════════════════════════════════════════════
+   THE SKILL ENTRY-POINT — required by Google AI Edge
+   ══════════════════════════════════════════════════════ */
+window['ai_edge_gallery_get_result'] = async (dataStr) => {
+  try {
+    const input   = typeof dataStr === 'string' ? JSON.parse(dataStr) : dataStr;
+    const action  = (input.action || '').toLowerCase();
+    let result    = '';
+
+    switch (action) {
+
+      case 'save_memory':
+        const saved = opSaveMemory(input.title, input.content, input.tags);
+        result = saved.message;
+        break;
+
+      case 'get_context':
+      case 'context':
+        result = opGetContext();
+        break;
+
+      case 'get_memories':
+      case 'list_memories':
+        result = opGetMemories();
+        break;
+
+      case 'search_memories':
+      case 'search':
+        result = opSearchMemories(input.query);
+        break;
+
+      case 'delete_memory':
+      case 'remove_memory':
+        result = opDeleteMemory(input.id);
+        break;
+
+      case 'wipe_memories':
+      case 'clear_memories':
+        result = opWipeMemories();
+        break;
+
+      case 'count':
+        const cnt = getData().memories.length;
+        result = `${cnt} memory/memories stored.`;
+        break;
+
+      default:
+        throw new Error(`Unknown action: "${action}". Valid actions: save_memory, get_context, get_memories, search_memories, delete_memory, wipe_memories.`);
+    }
+
+    return JSON.stringify({ result });
+
+  } catch (err) {
+    console.error('[Lethe]', err);
+    return JSON.stringify({ error: `Lethe Memory Tool error: ${err.message}` });
+  }
+};
+
+
+/* ══════════════════════════════════════════════════════
+   UI LAYER
+   ══════════════════════════════════════════════════════ */
+
+/* Toast */
+let toastTimer;
+function showToast(msg) {
+  const el = document.getElementById('toast');
+  el.textContent = msg;
+  el.classList.add('show');
+  clearTimeout(toastTimer);
+  toastTimer = setTimeout(() => el.classList.remove('show'), 2800);
+}
+
+/* Render memory list */
+function uiRender() {
+  const store  = getData();
+  const q      = (document.getElementById('inp-search')?.value || '').toLowerCase().trim();
+  const list   = document.getElementById('memoryList');
+
+  let mems = store.memories;
+  if (q) {
+    mems = mems.filter(m =>
+      m.title.toLowerCase().includes(q) ||
+      m.content.toLowerCase().includes(q) ||
+      m.tags.some(t => t.includes(q))
+    );
+  }
+
+  /* Stats */
+  const allTags = new Set(store.memories.flatMap(m => m.tags));
+  document.getElementById('statCount').textContent = store.memories.length;
+  document.getElementById('statTags').textContent  = allTags.size;
+  if (store.memories.length) {
+    const oldest = store.memories.reduce((a, b) => a.created < b.created ? a : b);
+    document.getElementById('statAge').textContent = daysAgo(oldest.created);
+  } else {
+    document.getElementById('statAge').textContent = '—';
+  }
+
+  if (!mems.length) {
+    list.innerHTML = `<div class="empty">
+      <span class="empty-glyph">𓂀</span>
+      <p>${q ? 'No matching memories' : 'No memories yet — inscribe the first'}</p>
+    </div>`;
+    return;
+  }
+
+  list.innerHTML = [...mems].reverse().map(m => `
+    <div class="memory-card" id="mc-${m.id}">
+      <div class="memory-header">
+        <div class="memory-title">${escHtml(m.title)}</div>
+        <button class="btn btn-danger" onclick="uiDelete('${m.id}')">✕</button>
+      </div>
+      <div class="memory-content">${escHtml(m.content)}</div>
+      <div class="memory-meta">
+        <span class="memory-date">${formatDate(m.created)}</span>
+        ${m.tags.map(t => `<span class="tag">${escHtml(t)}</span>`).join('')}
+        <span class="memory-date" style="margin-left:auto;font-size:9px;opacity:0.5">id:${m.id}</span>
+      </div>
+    </div>
+  `).join('');
+}
+
+function escHtml(s) {
+  return String(s)
+    .replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;')
+    .replace(/"/g,'&quot;').replace(/'/g,'&#39;');
+}
+
+/* Save memory via UI */
+function uiSaveMemory() {
+  const title   = document.getElementById('inp-title').value;
+  const content = document.getElementById('inp-content').value;
+  const tags    = document.getElementById('inp-tags').value;
+
+  try {
+    const r = opSaveMemory(title, content, tags);
+    uiClearForm();
+    uiRender();
+    showToast('✦ Memory inscribed');
+  } catch (e) {
+    showToast('⚠ ' + e.message);
+  }
+}
+
+function uiClearForm() {
+  ['inp-title','inp-content','inp-tags'].forEach(id => {
+    document.getElementById(id).value = '';
+  });
+}
+
+function uiDelete(id) {
+  const card = document.getElementById('mc-' + id);
+  if (card) {
+    card.style.opacity = '0';
+    card.style.transform = 'translateX(12px)';
+    card.style.transition = 'all 0.25s ease';
+  }
+  setTimeout(() => {
+    opDeleteMemory(id);
+    uiRender();
+    showToast('Memory removed');
+  }, 220);
+}
+
+function uiWipeAll() {
+  if (!confirm('Erase ALL memories permanently? This cannot be undone.')) return;
+  opWipeMemories();
+  uiRender();
+  showToast('All memories erased');
+}
+
+/* Init */
+document.addEventListener('DOMContentLoaded', () => {
+  uiRender();
+
+  /* Keyboard shortcut: Ctrl/Cmd+Enter to save */
+  document.addEventListener('keydown', e => {
+    if ((e.ctrlKey || e.metaKey) && e.key === 'Enter') uiSaveMemory();
+  });
+});
+</script>
+
+</body>
+</html>
