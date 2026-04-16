@@ -599,6 +599,21 @@ to   { opacity: 1; transform: translateY(0); }
 
   </div>
 
+  <!-- Debug / Test Zone -->
+
+  <div class="section-label" style="margin-top:32px">Debug & Testing</div>
+  <div class="card" style="animation-delay:0.12s">
+    <p style="font-size:14px;color:var(--muted);margin-bottom:14px;font-family:var(--ff-mono);letter-spacing:0.05em">
+      Test data retrieval and compression/decompression.
+    </p>
+    <div style="display:flex;gap:10px;flex-wrap:wrap;margin-bottom:14px;">
+      <button class="btn" onclick="uiTestGetData()">Test getData()</button>
+      <button class="btn" onclick="uiTestCompression()">Test Compression</button>
+      <button class="btn" onclick="uiViewRawStorage()">View Raw Storage</button>
+    </div>
+    <div id="debugOutput" style="background:var(--bg);border:1px solid var(--border);border-radius:var(--radius);padding:12px;font-family:var(--ff-mono);font-size:11px;color:var(--muted);max-height:200px;overflow-y:auto;display:none;white-space:pre-wrap;word-break:break-all;"></div>
+  </div>
+
   <!-- Danger zone -->
 
   <div class="section-label" style="margin-top:32px">Danger Zone</div>
@@ -628,8 +643,24 @@ function getData() {
   try {
     const raw = localStorage.getItem(STORAGE_KEY);
     if (!raw) return { memories: [] };
-    return JSON.parse(LZString.decompress(raw));
-  } catch { return { memories: [] }; }
+    
+    const decompressed = LZString.decompress(raw);
+    if (!decompressed) {
+      console.warn('[Lethe] Decompression returned null - data may be corrupted or uncompressed');
+      // Try parsing raw data directly (for backward compatibility)
+      try {
+        return JSON.parse(raw);
+      } catch {
+        console.error('[Lethe] Failed to parse raw data, returning empty store');
+        return { memories: [] };
+      }
+    }
+    
+    return JSON.parse(decompressed);
+  } catch (err) {
+    console.error('[Lethe] getData error:', err);
+    return { memories: [] };
+  }
 }
 
 function saveData(store) {
@@ -911,6 +942,85 @@ function uiWipeAll() {
   opWipeMemories();
   uiRender();
   showToast('All memories erased');
+}
+
+/* Debug functions */
+function uiTestGetData() {
+  console.log('[Lethe Debug] Testing getData()...');
+  const output = document.getElementById('debugOutput');
+  try {
+    const data = getData();
+    console.log('[Lethe Debug] getData() result:', data);
+    output.textContent = 'getData() SUCCESS:\n\n' + JSON.stringify(data, null, 2);
+    output.style.display = 'block';
+    output.style.color = 'var(--gold)';
+    showToast('✓ getData() succeeded - check debug output');
+  } catch (err) {
+    console.error('[Lethe Debug] getData() error:', err);
+    output.textContent = 'getData() ERROR:\n\n' + err.message + '\n\nStack:\n' + err.stack;
+    output.style.display = 'block';
+    output.style.color = 'var(--danger-hl)';
+    showToast('✗ getData() failed - check debug output');
+  }
+}
+
+function uiTestCompression() {
+  console.log('[Lethe Debug] Testing compression cycle...');
+  const output = document.getElementById('debugOutput');
+  try {
+    const testData = { memories: [{ id: 'test', title: 'Test Memory', content: 'Testing compression', tags: ['test'], created: new Date().toISOString(), updated: new Date().toISOString() }] };
+    
+    // Compress
+    const compressed = LZString.compress(JSON.stringify(testData));
+    console.log('[Lethe Debug] Compressed:', compressed?.substring(0, 50) + '...');
+    
+    // Decompress
+    const decompressed = LZString.decompress(compressed);
+    console.log('[Lethe Debug] Decompressed:', decompressed?.substring(0, 50) + '...');
+    
+    // Parse
+    const parsed = JSON.parse(decompressed);
+    console.log('[Lethe Debug] Parsed:', parsed);
+    
+    output.textContent = 'COMPRESSION TEST SUCCESS:\n\n' +
+      'Original: ' + JSON.stringify(testData).length + ' chars\n' +
+      'Compressed: ' + compressed.length + ' chars\n' +
+      'Decompressed: ' + decompressed.length + ' chars\n\n' +
+      'Parsed result:\n' + JSON.stringify(parsed, null, 2);
+    output.style.display = 'block';
+    output.style.color = 'var(--gold)';
+    showToast('✓ Compression test passed');
+  } catch (err) {
+    console.error('[Lethe Debug] Compression test error:', err);
+    output.textContent = 'COMPRESSION TEST ERROR:\n\n' + err.message + '\n\nStack:\n' + err.stack;
+    output.style.display = 'block';
+    output.style.color = 'var(--danger-hl)';
+    showToast('✗ Compression test failed');
+  }
+}
+
+function uiViewRawStorage() {
+  console.log('[Lethe Debug] Viewing raw storage...');
+  const output = document.getElementById('debugOutput');
+  try {
+    const raw = localStorage.getItem(STORAGE_KEY);
+    console.log('[Lethe Debug] Raw storage value:', raw);
+    
+    if (!raw) {
+      output.textContent = 'No data in localStorage for key: ' + STORAGE_KEY;
+      output.style.color = 'var(--muted)';
+    } else {
+      output.textContent = 'RAW STORAGE (' + raw.length + ' chars):\n\n' + raw.substring(0, 500) + (raw.length > 500 ? '\n\n... (truncated)' : '');
+      output.style.color = 'var(--cream)';
+    }
+    output.style.display = 'block';
+    showToast('Raw storage displayed');
+  } catch (err) {
+    console.error('[Lethe Debug] View storage error:', err);
+    output.textContent = 'ERROR:\n\n' + err.message;
+    output.style.display = 'block';
+    output.style.color = 'var(--danger-hl)';
+  }
 }
 
 /* Init */
