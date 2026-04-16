@@ -470,7 +470,7 @@ to   { opacity: 1; transform: translateY(0); }
 .stat-num { font-size: 22px; }
 }
 </style>
-
+<script src="https://cdnjs.cloudflare.com/ajax/libs/lz-string/1.5.0/lz-string.min.js"></script>
 </head>
 <body>
 <div class="app">
@@ -626,12 +626,15 @@ const STORAGE_KEY = 'lethe_memory_tool_v1';
 
 function getData() {
   try {
-    return JSON.parse(localStorage.getItem(STORAGE_KEY) || '{"memories":[]}');
+    const raw = localStorage.getItem(STORAGE_KEY);
+    if (!raw) return { memories: [] };
+    return JSON.parse(LZString.decompress(raw));
   } catch { return { memories: [] }; }
 }
 
 function saveData(store) {
-  localStorage.setItem(STORAGE_KEY, JSON.stringify(store));
+  const compressed = LZString.compress(JSON.stringify(store));
+  localStorage.setItem(STORAGE_KEY, compressed);
 }
 
 /* ── ID generator ───────────────────────────────────── */
